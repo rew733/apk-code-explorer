@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>APK Code Explorer</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface-hover: #334155;
+    --border: #334155;
+    --primary: #38bdf8;
+    --primary-dim: rgba(56, 189, 248, 0.15);
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --code-bg: #0b1120;
+    --tag-color: #f472b6;
+    --attr-color: #38bdf8;
+    --str-color: #4ade80;
+    --kw-color: #c084fc;
+    --comment-color: #64748b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Header */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .header-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  .header-title h1 {
+    font-size: 16px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .badge {
+    background: var(--primary-dim);
+    color: var(--primary);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .btn {
+    background: var(--primary);
+    color: #0f172a;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .btn:active { opacity: 0.85; transform: scale(0.98); }
+
+  .btn-secondary {
+    background: var(--surface-hover);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-icon {
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+
+  /* Views */
+  .view {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .view.active {
+    display: flex;
+  }
+
+  /* Search Bar */
+  .search-box {
+    padding: 10px 14px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .search-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+  }
+
+  .search-input:focus {
+    border-color: var(--primary);
+  }
+
+  /* App List */
+  .list-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px;
+  }
+
+  .app-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+  }
+
+  .app-card:active {
+    background: var(--surface-hover);
+  }
+
+  .app-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: #0f172a;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .app-info {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .app-name {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .app-pkg {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: monospace;
+    direction: ltr;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Tabs & Filter Pills */
+  .meta-banner {
+    background: var(--surface);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .pills {
+    display: flex;
+    gap: 6px;
+    padding: 8px 14px;
+    overflow-x: auto;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .pill {
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 5px 12px;
+    border-radius: 99px;
+    font-size: 12px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .pill.active {
+    background: var(--primary-dim);
+    color: var(--primary);
+    border-color: var(--primary);
+    font-weight: 700;
+  }
+
+  /* File Tree Item */
+  .file-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    direction: ltr;
+  }
+
+  .file-item:active {
+    background: var(--surface-hover);
+  }
+
+  .file-path {
+    font-family: monospace;
+    font-size: 12.5px;
+    color: var(--text);
+    word-break: break-all;
+  }
+
+  .file-tag {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  .tag-manifest { background: rgba(244, 114, 182, 0.2); color: #f472b6; }
+  .tag-dex { background: rgba(192, 132, 252, 0.2); color: #c084fc; }
+  .tag-asset, .tag-code { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
+  .tag-layout, .tag-xml { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+  .tag-other, .tag-image, .tag-native { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+
+  /* Code Viewer */
+  .code-toolbar {
+    background: var(--surface);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .code-wrapper {
+    flex: 1;
+    background: var(--code-bg);
+    overflow: auto;
+    direction: ltr;
+    text-align: left;
+    padding: 12px 0;
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  .code-line {
+    display: flex;
+    padding: 0 12px;
+    min-width: max-content;
+  }
+
+  .code-line:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .code-line.highlight-match {
+    background: rgba(250, 204, 21, 0.2);
+  }
+
+  .line-num {
+    color: #475569;
+    user-select: none;
+    min-width: 42px;
+    padding-right: 12px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .line-code {
+    white-space: pre;
+    color: #e2e8f0;
+  }
+
+  /* Syntax Colors */
+  .syn-tag { color: var(--tag-color); }
+  .syn-attr { color: var(--attr-color); }
+  .syn-str { color: var(--str-color); }
+  .syn-kw { color: var(--kw-color); font-weight: 600; }
+  .syn-com { color: var(--comment-color); font-style: italic; }
+
+  /* Loader Overlay */
+  .loader-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.88);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    z-index: 999;
+  }
+
+  .loader-overlay.active { display: flex; }
+
+  .spinner {
+    width: 38px;
+    height: 38px;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="header-title">
+      <button id="backBtn" class="btn btn-secondary btn-icon" style="display:none;" onclick="goBack()">رجوع</button>
+      <h1 id="headerTitle">مستكشف أكواد التطبيقات</h1>
+    </div>
+    <button class="btn" onclick="pickApkFile()">+ رفع APK</button>
+  </header>
+
+  <!-- VIEW 1: Installed Apps & Upload -->
+  <div id="viewApps" class="view active">
+    <div class="search-box">
+      <input type="text" id="appSearchInput" class="search-input" placeholder="ابحث عن تطبيق مثبت بالاسم أو الحزمة..." oninput="filterApps()">
+    </div>
+    <div id="appsList" class="list-container">
+      <div class="empty-state">جاري تحميل قائمة التطبيقات المثبتة...</div>
+    </div>
+  </div>
+
+  <!-- VIEW 2: APK Structure & Files -->
+  <div id="viewFiles" class="view">
+    <div id="apkMetaBanner" class="meta-banner"></div>
+    <div class="pills" id="filterPills">
+      <div class="pill active" data-filter="all" onclick="setFileFilter('all', this)">الكل</div>
+      <div class="pill" data-filter="manifest" onclick="setFileFilter('manifest', this)">Manifest</div>
+      <div class="pill" data-filter="code" onclick="setFileFilter('code', this)">أكواد الويب / Assets</div>
+      <div class="pill" data-filter="layout" onclick="setFileFilter('layout', this)">واجهات XML</div>
+      <div class="pill" data-filter="dex" onclick="setFileFilter('dex', this)">كود البرمجة DEX</div>
+    </div>
+    <div class="search-box">
+      <input type="text" id="fileSearchInput" class="search-input" placeholder="تصفية الملفات (مثل: index.html أو MainActivity)..." oninput="renderFilesList()">
+    </div>
+    <div id="filesList" class="list-container"></div>
+  </div>
+
+  <!-- VIEW 3: Code Viewer -->
+  <div id="viewCode" class="view">
+    <div class="code-toolbar">
+      <div style="display:flex; gap:6px;">
+        <button class="btn btn-secondary btn-icon" onclick="changeFontSize(-1)">A-</button>
+        <button class="btn btn-secondary btn-icon" onclick="changeFontSize(1)">A+</button>
+      </div>
+      <input type="text" id="codeSearchInput" class="search-input" style="padding:5px 10px; font-size:12px;" placeholder="بحث داخل الكود..." oninput="highlightCodeSearch()">
+      <div style="display:flex; gap:6px;">
+        <button class="btn btn-secondary btn-icon" onclick="copyCurrentCode()">نسخ</button>
+        <button class="btn btn-icon" onclick="shareCurrentCode()">مشاركة</button>
+      </div>
+    </div>
+    <div id="codeWrapper" class="code-wrapper"></div>
+  </div>
+
+  <!-- Loader -->
+  <div id="loaderOverlay" class="loader-overlay">
+    <div class="spinner"></div>
+    <div id="loaderText" style="font-size:14px; color:var(--text);">جاري المعالجة...</div>
+  </div>
+
+<script>
+  let installedApps = [];
+  let currentApkData = null;
+  let currentFilter = 'all';
+  let currentFilePath = '';
+  let currentRawCode = '';
+  let currentFontSize = 12.5;
+  let currentView = 'viewApps';
+
+  window.addEventListener('DOMContentLoaded', () => {
+    if (window.AndroidBridge && window.AndroidBridge.requestInstalledApps) {
+      window.AndroidBridge.requestInstalledApps();
+    } else {
+      document.getElementById('appsList').innerHTML = '<div class="empty-state">اضغط على "+ رفع APK" لاختيار ملف تطبيق من جهازك.</div>';
+    }
+  });
+
+  function switchView(viewId, titleText) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+    currentView = viewId;
+    document.getElementById('headerTitle').textContent = titleText;
+    document.getElementById('backBtn').style.display = (viewId === 'viewApps') ? 'none' : 'inline-flex';
+  }
+
+  function goBack() {
+    if (currentView === 'viewCode') {
+      switchView('viewFiles', currentApkData ? currentApkData.appName : 'ملفات الحزمة');
+    } else if (currentView === 'viewFiles') {
+      switchView('viewApps', 'مستكشف أكواد التطبيقات');
+    }
+  }
+
+  window.handleAndroidBack = function() {
+    if (currentView === 'viewCode' || currentView === 'viewFiles') {
+      goBack();
+      return true;
+    }
+    return false;
+  };
+
+  function showLoader(show, msg = 'جاري التحميل...') {
+    const el = document.getElementById('loaderOverlay');
+    document.getElementById('loaderText').textContent = msg;
+    if (show) el.classList.add('active');
+    else el.classList.remove('active');
+  }
+
+  window.onLoadingState = function(data) {
+    showLoader(data.loading, data.message);
+  };
+
+  function pickApkFile() {
+    if (window.AndroidBridge && window.AndroidBridge.openFilePicker) {
+      window.AndroidBridge.openFilePicker();
+    }
+  }
+
+  window.onInstalledAppsLoaded = function(apps) {
+    installedApps = apps || [];
+    installedApps.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    renderAppsList(installedApps);
+  };
+
+  function filterApps() {
+    const q = document.getElementById('appSearchInput').value.toLowerCase().trim();
+    const filtered = installedApps.filter(app =>
+      app.name.toLowerCase().includes(q) || app.packageName.toLowerCase().includes(q)
+    );
+    renderAppsList(filtered);
+  }
+
+  function renderAppsList(list) {
+    const container = document.getElementById('appsList');
+    if (!list.length) {
+      container.innerHTML = '<div class="empty-state">لا توجد تطبيقات مطابقة. يمكنك رفع ملف APK مباشرة من الزر بالأعلى.</div>';
+      return;
+    }
+    container.innerHTML = list.map(app => `
+      <div class="app-card" onclick="inspectApp('${escapeAttr(app.sourceDir)}')">
+        <img class="app-icon" src="${app.icon || ''}" onerror="this.style.visibility='hidden'">
+        <div class="app-info">
+          <div class="app-name">${escapeHtml(app.name)}</div>
+          <div class="app-pkg">${escapeHtml(app.packageName)}</div>
+        </div>
+        <span class="badge">فحص</span>
+      </div>
+    `).join('');
+  }
+
+  function inspectApp(sourceDir) {
+    if (window.AndroidBridge && window.AndroidBridge.inspectInstalledApp) {
+      window.AndroidBridge.inspectInstalledApp(sourceDir);
+    }
+  }
+
+  window.onApkAnalyzed = function(data) {
+    showLoader(false);
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    currentApkData = data;
+    currentFilter = 'all';
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    document.querySelector('.pill[data-filter="all"]').classList.add('active');
+    document.getElementById('fileSearchInput').value = '';
+
+    const fileCount = (data.files || []).length;
+    const permCount = (data.permissions || []).length;
+    document.getElementById('apkMetaBanner').innerHTML = `
+      <span>الحزمة: <strong style="color:var(--text)">${escapeHtml(data.packageName || '')}</strong></span>
+      <span>الملفات: <strong style="color:var(--primary)">${fileCount}</strong> | الأذونات: <strong>${permCount}</strong></span>
+    `;
+
+    switchView('viewFiles', data.appName || 'تحليل الحزمة');
+    renderFilesList();
+  };
+
+  function setFileFilter(filter, pillEl) {
+    currentFilter = filter;
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    pillEl.classList.add('active');
+    renderFilesList();
+  }
+
+  function renderFilesList() {
+    if (!currentApkData || !currentApkData.files) return;
+    const q = document.getElementById('fileSearchInput').value.toLowerCase().trim();
+    const container = document.getElementById('filesList');
+
+    const filtered = currentApkData.files.filter(f => {
+      const matchQuery = f.path.toLowerCase().includes(q);
+      if (!matchQuery) return false;
+      if (currentFilter === 'all') return true;
+      if (currentFilter === 'manifest') return f.type === 'manifest';
+      if (currentFilter === 'code') return f.type === 'asset' || f.type === 'code';
+      if (currentFilter === 'layout') return f.type === 'layout' || f.type === 'xml';
+      if (currentFilter === 'dex') return f.type === 'dex';
+      return true;
+    });
+
+    // ترتيب الملفات المهمة في البداية
+    filtered.sort((a, b) => priorityScore(b) - priorityScore(a));
+
+    if (!filtered.length) {
+      container.innerHTML = '<div class="empty-state">لا توجد ملفات مطابقة لهذا التصنيف.</div>';
+      return;
+    }
+
+    container.innerHTML = filtered.slice(0, 350).map(f => `
+      <div class="file-item" onclick="openCodeEntry('${escapeAttr(f.path)}')">
+        <div class="file-path">${escapeHtml(f.path)}</div>
+        <span class="file-tag tag-${f.type}">${f.type}</span>
+      </div>
+    `).join('');
+  }
+
+  function priorityScore(file) {
+    if (file.path === 'AndroidManifest.xml') return 100;
+    if (file.path.endsWith('index.html')) return 90;
+    if (file.type === 'dex') return 80;
+    if (file.type === 'code' || file.type === 'asset') return 70;
+    if (file.type === 'layout') return 60;
+    return 10;
+  }
+
+  function openCodeEntry(entryPath) {
+    showLoader(true, 'جاري قراءة الكود...');
+    if (window.AndroidBridge && window.AndroidBridge.readEntryCode) {
+      window.AndroidBridge.readEntryCode(entryPath);
+    }
+  }
+
+  window.onEntryContentLoaded = function(payload) {
+    showLoader(false);
+    currentFilePath = payload.path;
+    currentRawCode = payload.content || '';
+    document.getElementById('codeSearchInput').value = '';
+    const shortName = currentFilePath.split('/').pop();
+    switchView('viewCode', shortName);
+    renderCodeLines(currentRawCode, '');
+  };
+
+  function renderCodeLines(code, searchQuery) {
+    const wrapper = document.getElementById('codeWrapper');
+    wrapper.style.fontSize = currentFontSize + 'px';
+    const lines = code.split('\n');
+    const maxLines = Math.min(lines.length, 3000);
+    const qLower = searchQuery.toLowerCase();
+
+    let html = '';
+    for (let i = 0; i < maxLines; i++) {
+      const rawLine = lines[i];
+      const isMatch = qLower && rawLine.toLowerCase().includes(qLower);
+      const formatted = syntaxHighlight(rawLine);
+      html += `<div class="code-line ${isMatch ? 'highlight-match' : ''}"><span class="line-num">${i + 1}</span><span class="line-code">${formatted}</span></div>`;
+    }
+
+    if (lines.length > maxLines) {
+      html += `<div class="code-line"><span class="line-num">...</span><span class="line-code syn-com">// تم عرض أول ${maxLines} سطر من أصل ${lines.length} سطر للحفاظ على سرعة الأداء.</span></div>`;
+    }
+
+    wrapper.innerHTML = html;
+    wrapper.scrollTop = 0;
+  }
+
+  function syntaxHighlight(line) {
+    let esc = escapeHtml(line);
+    if (esc.trim().startsWith('//') || esc.trim().startsWith('/*') || esc.trim().startsWith('*')) {
+      return `<span class="syn-com">${esc}</span>`;
+    }
+    // Strings
+    esc = esc.replace(/(&quot;.*?&quot;|&#39;.*?&#39;)/g, '<span class="syn-str">$1</span>');
+    // XML/HTML Tags
+    esc = esc.replace(/(&lt;\/?[a-zA-Z0-9_.:-]+)/g, '<span class="syn-tag">$1</span>');
+    // Keywords
+    esc = esc.replace(/\b(public|private|protected|class|fun|function|const|let|var|return|if|else|for|while|import|package|void|new|true|false|null)\b/g, '<span class="syn-kw">$1</span>');
+    return esc;
+  }
+
+  function highlightCodeSearch() {
+    const q = document.getElementById('codeSearchInput').value.trim();
+    renderCodeLines(currentRawCode, q);
+  }
+
+  function changeFontSize(delta) {
+    currentFontSize = Math.max(9, Math.min(22, currentFontSize + delta));
+    document.getElementById('codeWrapper').style.fontSize = currentFontSize + 'px';
+  }
+
+  function copyCurrentCode() {
+    if (window.AndroidBridge && window.AndroidBridge.copyToClipboard) {
+      window.AndroidBridge.copyToClipboard(currentRawCode);
+    }
+  }
+
+  function shareCurrentCode() {
+    if (window.AndroidBridge && window.AndroidBridge.shareCode) {
+      window.AndroidBridge.shareCode(currentFilePath, currentRawCode.slice(0, 50000));
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function escapeAttr(str) {
+    return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  }
+</script>
+</body>
+</html>
