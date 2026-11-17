@@ -33,8 +33,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var parserEngine: ApkParserEngine
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    private var pendingSaveContent: String = ""
-    private var pendingSaveFileName: String = "extracted_code.txt"
+    private var pendingSaveBytes: ByteArray = ByteArray(0)
+    private var pendingSaveFileName: String = "extracted_file.txt"
 
     private var pendingBatchPaths: List<String> = emptyList()
     private var pendingBatchFolderName: String = "ExtractedApp"
@@ -47,11 +47,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val createCodeFileLauncher = registerForActivityResult(
-        ActivityResultContracts.CreateDocument("text/plain")
+    private val createBinaryOrTextFileLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("*/*")
     ) { uri: Uri? ->
         if (uri != null) {
-            writeTextToUri(uri, pendingSaveContent, pendingSaveFileName)
+            writeBytesToUri(uri, pendingSaveBytes, pendingSaveFileName)
         }
     }
 
@@ -108,12 +108,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun writeTextToUri(uri: Uri, content: String, fileName: String) {
+    private fun writeBytesToUri(uri: Uri, bytes: ByteArray, fileName: String) {
         mainScope.launch {
             val success = withContext(Dispatchers.IO) {
                 try {
                     contentResolver.openOutputStream(uri)?.use { output ->
-                        output.write(content.toByteArray(StandardCharsets.UTF_8))
+                        output.write(bytes)
                     }
                     true
                 } catch (_: Exception) {
@@ -148,7 +148,6 @@ class MainActivity : AppCompatActivity() {
                     dirCache[""] = appRootDoc
 
                     for ((index, entryPath) in paths.withIndex()) {
-                        val content = parserEngine.readEntryContent(entryPath)
                         val segments = entryPath.split("/")
                         val rawFileName = segments.last()
                         val dirSegments = segments.dropLast(1)
@@ -169,14 +168,30 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
 
-                        val finalFileName = "$rawFileName.txt"
-                        currentDir.findFile(finalFileName)?.delete()
-                        val targetFile = currentDir.createFile("text/plain", finalFileName)
-                        if (targetFile != null) {
-                            contentResolver.openOutputStream(targetFile.uri)?.use { out ->
-                                out.write(content.toByteArray(StandardCharsets.UTF_8))
+                        if (parserEngine.isImageEntry(entryPath)) {
+                            val imgBytes = parserEngine.readEntryBytes(entryPath)
+                            if (imgBytes != null) {
+                                val mime = parserEngine.getImageMimeType(entryPath)
+                                currentDir.findFile(rawFileName)?.delete()
+                                val targetFile = currentDir.createFile(mime, rawFileName)
+                                if (targetFile != null) {
+                                    contentResolver.openOutputStream(targetFile.uri)?.use { out ->
+                                        out.write(imgBytes)
+                                    }
+                                    count++
+                                }
                             }
-                            count++
+                        } else {
+                            val content = parserEngine.readEntryContent(entryPath)
+                            val finalFileName = "$rawFileName.txt"
+                            currentDir.findFile(finalFileName)?.delete()
+                            val targetFile = currentDir.createFile("text/plain", finalFileName)
+                            if (targetFile != null) {
+                                contentResolver.openOutputStream(targetFile.uri)?.use { out ->
+                                    out.write(content.toByteArray(StandardCharsets.UTF_8))
+                                }
+                                count++
+                            }
                         }
 
                         if ((index + 1) % 5 == 0 || index + 1 == total) {
@@ -261,12 +276,26 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun readEntryImage(entryPath: String) {
+            mainScope.launch {
+                val dataUrl = withContext(Dispatchers.IO) {
+                    parserEngine.readEntryImageBase64(entryPath)
+                }
+                val payload = JSONObject()
+                    .put("path", entryPath)
+                    .put("dataUrl", dataUrl)
+                    .toString()
+                sendToJs("onEntryImageLoaded", payload)
+            }
+        }
+
+        @JavascriptInterface
         fun saveCodeAsTxt(suggestedFileName: String, codeContent: String) {
             pendingSaveFileName = suggestedFileName
-            pendingSaveContent = codeContent
+            pendingSaveBytes = codeContent.toByteArray(StandardCharsets.UTF_8)
             runOnUiThread {
                 try {
-                    createCodeFileLauncher.launch(suggestedFileName)
+                    createBinaryOrTextFileLauncher.launch(suggestedFileName)
                 } catch (e: Exception) {
                     Toast.makeText(this@MainActivity, "خطأ في فتح نافذة الحفظ: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
@@ -282,9 +311,31 @@ class MainActivity : AppCompatActivity() {
                 val cleanBase = entryPath.substringAfterLast('/')
                 val finalName = "${appNamePrefix}_${cleanBase}.txt"
                 pendingSaveFileName = finalName
-                pendingSaveContent = content
+                pendingSaveBytes = content.toByteArray(StandardCharsets.UTF_8)
                 try {
-                    createCodeFileLauncher.launch(finalName)
+                    createBinaryOrTextFileLauncher.launch(finalName)
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "خطأ في فتح نافذة الحفظ: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun exportSingleImageFile(entryPath: String, appNamePrefix: String) {
+            mainScope.launch {
+                val bytes = withContext(Dispatchers.IO) {
+                    parserEngine.readEntryBytes(entryPath)
+                }
+                if (bytes == null) {
+                    Toast.makeText(this@MainActivity, "تعذر قراءة بيانات الصورة", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                val cleanBase = entryPath.substringAfterLast('/')
+                val finalName = "${appNamePrefix}_${cleanBase}"
+                pendingSaveFileName = finalName
+                pendingSaveBytes = bytes
+                try {
+                    createBinaryOrTextFileLauncher.launch(finalName)
                 } catch (e: Exception) {
                     Toast.makeText(this@MainActivity, "خطأ في فتح نافذة الحفظ: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
