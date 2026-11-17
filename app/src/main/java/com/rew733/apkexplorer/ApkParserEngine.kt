@@ -29,7 +29,6 @@ class ApkParserEngine(private val context: Context) {
         val jsonArray = JSONArray()
 
         for (appInfo in packages) {
-            // التركيز على التطبيقات المثبتة من المستخدم أو التطبيقات القابلة للتشغيل
             val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
             val launchIntent = pm.getLaunchIntentForPackage(appInfo.packageName)
             if (isSystem && launchIntent == null) continue
@@ -117,6 +116,41 @@ class ApkParserEngine(private val context: Context) {
         return result.toString()
     }
 
+    fun readEntryBytes(entryPath: String): ByteArray? {
+        val file = currentApkFile ?: return null
+        return try {
+            ZipFile(file).use { zip ->
+                val entry = zip.getEntry(entryPath) ?: return null
+                zip.getInputStream(entry).use { it.readBytes() }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun readEntryImageBase64(entryPath: String): String {
+        val bytes = readEntryBytes(entryPath) ?: return ""
+        val mime = getImageMimeType(entryPath)
+        return "data:$mime;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
+
+    fun isImageEntry(path: String): Boolean {
+        val lower = path.lowercase()
+        return lower.endsWith(".png") || lower.endsWith(".jpg") ||
+                lower.endsWith(".jpeg") || lower.endsWith(".webp") || lower.endsWith(".gif")
+    }
+
+    fun getImageMimeType(path: String): String {
+        val lower = path.lowercase()
+        return when {
+            lower.endsWith(".png") -> "image/png"
+            lower.endsWith(".jpg") || lower.endsWith(".jpeg") -> "image/jpeg"
+            lower.endsWith(".webp") -> "image/webp"
+            lower.endsWith(".gif") -> "image/gif"
+            else -> "application/octet-stream"
+        }
+    }
+
     fun readEntryContent(entryPath: String): String {
         val file = currentApkFile ?: return "// لم يتم تحديد أي ملف APK بعد."
         return try {
@@ -150,15 +184,16 @@ class ApkParserEngine(private val context: Context) {
     }
 
     private fun classifyFileType(path: String): String {
+        val lower = path.lowercase()
         return when {
             path == "AndroidManifest.xml" -> "manifest"
-            path.endsWith(".dex") -> "dex"
-            path.startsWith("assets/") -> "asset"
-            path.startsWith("res/layout/") -> "layout"
-            path.endsWith(".xml") -> "xml"
-            path.endsWith(".html") || path.endsWith(".js") || path.endsWith(".css") || path.endsWith(".json") -> "code"
-            path.endsWith(".png") || path.endsWith(".jpg") || path.endsWith(".webp") -> "image"
-            path.endsWith(".so") -> "native"
+            lower.endsWith(".dex") -> "dex"
+            isImageEntry(lower) -> "image"
+            lower.startsWith("assets/") -> "asset"
+            lower.startsWith("res/layout/") -> "layout"
+            lower.endsWith(".xml") -> "xml"
+            lower.endsWith(".html") || lower.endsWith(".js") || lower.endsWith(".css") || lower.endsWith(".json") -> "code"
+            lower.endsWith(".so") -> "native"
             else -> "other"
         }
     }
@@ -203,9 +238,6 @@ class ApkParserEngine(private val context: Context) {
     }
 }
 
-/**
- * مفكك ملفات Android Binary XML (AXML) لعرض AndroidManifest.xml وملفات الواجهات بصيغة مقروءة
- */
 object BinaryXmlDecoder {
     fun decode(xml: ByteArray): String {
         return try {
@@ -226,7 +258,7 @@ object BinaryXmlDecoder {
                 if (chunkSize <= 0 || chunkStart + chunkSize > xml.size) break
 
                 when (type) {
-                    0x0102 -> { // START_TAG
+                    0x0102 -> {
                         if (chunkSize >= 36) {
                             buf.position(chunkStart + 16)
                             val nsIdx = buf.int
@@ -246,7 +278,7 @@ object BinaryXmlDecoder {
                                 val aNameIdx = buf.int
                                 val aRawValIdx = buf.int
                                 val aValSize = buf.short.toInt() and 0xFFFF
-                                buf.get() // res0
+                                buf.get()
                                 val aValType = buf.get().toInt() and 0xFF
                                 val aValData = buf.int
 
@@ -268,7 +300,7 @@ object BinaryXmlDecoder {
                             indent++
                         }
                     }
-                    0x0103 -> { // END_TAG
+                    0x0103 -> {
                         indent = (indent - 1).coerceAtLeast(0)
                         buf.position(chunkStart + 20)
                         val nameIdx = buf.int
@@ -291,13 +323,13 @@ object BinaryXmlDecoder {
         val chunkStart = buf.position()
         val type = buf.short.toInt() and 0xFFFF
         if (type != 0x0001) return list
-        buf.short // headerSize
+        buf.short
         val chunkSize = buf.int
         val stringCount = buf.int
-        buf.int // styleCount
+        buf.int
         val flags = buf.int
         val stringsStart = buf.int
-        buf.int // stylesStart
+        buf.int
 
         val isUtf8 = (flags and (1 shl 8)) != 0
         val offsets = IntArray(stringCount) { buf.int }
@@ -336,9 +368,6 @@ object BinaryXmlDecoder {
     }
 }
 
-/**
- * مستخرج هيكلة الفئات والدوال البرمجية من ملفات classes.dex
- */
 object DexInspector {
     fun extractStructure(dexBytes: ByteArray, fileName: String): String {
         return try {
@@ -386,7 +415,6 @@ object DexInspector {
                 val rawType = types.getOrElse(classIdx) { "" }
                 if (rawType.startsWith("L") && rawType.endsWith(";")) {
                     val javaName = rawType.substring(1, rawType.length - 1).replace('/', '.')
-                    // استبعاد مكتبات أندرويد القياسية للتركيز على كود التطبيق نفسه
                     if (!javaName.startsWith("android.") &&
                         !javaName.startsWith("androidx.") &&
                         !javaName.startsWith("kotlin.") &&
@@ -425,7 +453,6 @@ object DexInspector {
     private fun readMutf8(data: ByteArray, offset: Int): String {
         if (offset < 0 || offset >= data.size) return ""
         var pos = offset
-        // تخطي طول ULEB128
         while (pos < data.size && (data[pos].toInt() and 0x80) != 0) {
             pos++
         }
