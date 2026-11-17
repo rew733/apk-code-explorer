@@ -248,6 +248,29 @@
     color: #4ade80;
   }
 
+  /* Batch Export Toolbar */
+  .batch-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 9px 14px;
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  .batch-bar.active {
+    display: flex;
+  }
+
+  .batch-info {
+    font-size: 12.5px;
+    color: var(--text);
+    font-weight: 600;
+  }
+
   .file-item {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -259,6 +282,19 @@
     justify-content: space-between;
     gap: 10px;
     direction: ltr;
+  }
+
+  .file-item.selected {
+    border-color: var(--success);
+    background: rgba(34, 197, 94, 0.08);
+  }
+
+  .file-checkbox {
+    width: 19px;
+    height: 19px;
+    accent-color: var(--success);
+    cursor: pointer;
+    flex-shrink: 0;
   }
 
   .file-main {
@@ -324,33 +360,9 @@
     color: #bbf7d0;
     padding: 10px 12px;
     border-radius: 8px;
-    font-size: 12.5px;
+    font-size: 12px;
     margin-bottom: 10px;
     line-height: 1.5;
-  }
-
-  .saved-history-box {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 12px;
-    margin-bottom: 10px;
-  }
-
-  .saved-history-title {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--primary);
-    margin-bottom: 6px;
-  }
-
-  .saved-item {
-    font-size: 11.5px;
-    color: #4ade80;
-    font-family: monospace;
-    padding: 3px 0;
-    direction: ltr;
-    text-align: left;
   }
 
   /* Code Viewer */
@@ -421,6 +433,8 @@
     justify-content: center;
     gap: 14px;
     z-index: 999;
+    padding: 20px;
+    text-align: center;
   }
 
   .loader-overlay.active { display: flex; }
@@ -475,8 +489,18 @@
       <div class="pill" data-filter="layout" onclick="setFileFilter('layout', this)">واجهات XML</div>
       <div class="pill" data-filter="dex" onclick="setFileFilter('dex', this)">كود البرمجة DEX</div>
     </div>
+
+    <!-- Batch Selection & Export Toolbar -->
+    <div id="batchExportBar" class="batch-bar">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button id="selectAllBtn" class="btn btn-secondary btn-icon" onclick="toggleSelectAllFiltered()">تحديد الكل</button>
+        <span id="selectedCountLabel" class="batch-info">المحدد: 0</span>
+      </div>
+      <button id="batchDownloadBtn" class="btn btn-success btn-icon" onclick="downloadSelectedBatch()">تحميل المحدد في مساراته</button>
+    </div>
+
     <div class="search-box">
-      <input type="text" id="fileSearchInput" class="search-input" placeholder="تصفية الملفات (مثل: index.html أو MainActivity)..." oninput="renderFilesList()">
+      <input type="text" id="fileSearchInput" class="search-input" placeholder="تصفية الملفات (مثل: index.html أو res/layout)..." oninput="renderFilesList()">
     </div>
     <div id="filesList" class="list-container"></div>
   </div>
@@ -512,7 +536,8 @@
   let currentRawCode = '';
   let currentFontSize = 12.5;
   let currentView = 'viewApps';
-  let savedFilesLog = [];
+  let selectedPathsSet = new Set();
+  let lastFilteredExportablePaths = [];
 
   window.addEventListener('DOMContentLoaded', () => {
     if (window.AndroidBridge && window.AndroidBridge.requestInstalledApps) {
@@ -609,6 +634,7 @@
     }
     currentApkData = data;
     currentFilter = 'all';
+    selectedPathsSet.clear();
     document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
     document.querySelector('.pill[data-filter="all"]').classList.add('active');
     document.getElementById('fileSearchInput').value = '';
@@ -643,6 +669,60 @@
            f.type === 'layout' || f.type === 'xml' || f.type === 'dex';
   }
 
+  function updateBatchBarUI() {
+    const batchBar = document.getElementById('batchExportBar');
+    if (currentFilter === 'export') {
+      batchBar.classList.add('active');
+      const count = selectedPathsSet.size;
+      document.getElementById('selectedCountLabel').textContent = `المحدد: ${count}`;
+      const allSelected = lastFilteredExportablePaths.length > 0 &&
+        lastFilteredExportablePaths.every(p => selectedPathsSet.has(p));
+      document.getElementById('selectAllBtn').textContent = allSelected ? 'إلغاء تحديد الكل' : `تحديد الكل (${lastFilteredExportablePaths.length})`;
+    } else {
+      batchBar.classList.remove('active');
+    }
+  }
+
+  function toggleFileSelection(entryPath) {
+    if (selectedPathsSet.has(entryPath)) {
+      selectedPathsSet.delete(entryPath);
+    } else {
+      selectedPathsSet.add(entryPath);
+    }
+    updateBatchBarUI();
+    renderFilesList();
+  }
+
+  function toggleSelectAllFiltered() {
+    if (!lastFilteredExportablePaths.length) return;
+    const allSelected = lastFilteredExportablePaths.every(p => selectedPathsSet.has(p));
+    if (allSelected) {
+      lastFilteredExportablePaths.forEach(p => selectedPathsSet.delete(p));
+    } else {
+      lastFilteredExportablePaths.forEach(p => selectedPathsSet.add(p));
+    }
+    updateBatchBarUI();
+    renderFilesList();
+  }
+
+  function downloadSelectedBatch() {
+    const pathsToExport = Array.from(selectedPathsSet);
+    if (pathsToExport.length === 0) {
+      alert('يرجى تحديد ملف واحد على الأقل أو الضغط على "تحديد الكل" أولاً.');
+      return;
+    }
+    const cleanFolderName = (currentApkData && currentApkData.appName ? currentApkData.appName : 'ExtractedApp')
+      .replace(/[^a-zA-Z0-9\u0600-\u06FF_-]/g, '_');
+
+    if (window.AndroidBridge && window.AndroidBridge.startBatchExport) {
+      window.AndroidBridge.startBatchExport(cleanFolderName, JSON.stringify(pathsToExport));
+    }
+  }
+
+  window.onBatchExportFinished = function(info) {
+    showLoader(false);
+  };
+
   function renderFilesList() {
     if (!currentApkData || !currentApkData.files) return;
     const q = document.getElementById('fileSearchInput').value.toLowerCase().trim();
@@ -662,21 +742,20 @@
 
     filtered.sort((a, b) => priorityScore(b) - priorityScore(a));
 
+    if (currentFilter === 'export') {
+      lastFilteredExportablePaths = filtered.map(f => f.path);
+    } else {
+      lastFilteredExportablePaths = [];
+    }
+    updateBatchBarUI();
+
     let topBannerHtml = '';
     if (currentFilter === 'export') {
       topBannerHtml += `
         <div class="export-notice">
-          اضغط على زر <strong>تحميل TXT</strong> بجانب أي ملف لحفظه فوراً كملف نصي في ذاكرة هاتفك وقراءته أو دراسته في أي محرر خارجي دون تعليق.
+          اضغط على <strong>تحديد الكل</strong> ثم <strong>تحميل المحدد في مساراته</strong>، واختر مجلداً على هاتفك؛ سيقوم التطبيق بإنشاء مجلد باسم التطبيق وبداخله جميع المجلدات الفرعية والملفات بأسمائها الحقيقية.
         </div>
       `;
-      if (savedFilesLog.length > 0) {
-        topBannerHtml += `
-          <div class="saved-history-box">
-            <div class="saved-history-title">الملفات التي تم تحميلها في هذه الجلسة (${savedFilesLog.length}):</div>
-            ${savedFilesLog.map(name => `<div class="saved-item">✓ ${escapeHtml(name)}</div>`).join('')}
-          </div>
-        `;
-      }
     }
 
     if (!filtered.length) {
@@ -684,10 +763,15 @@
       return;
     }
 
-    const itemsHtml = filtered.slice(0, 350).map(f => {
+    const displayLimit = (currentFilter === 'export') ? filtered.length : 350;
+    const itemsHtml = filtered.slice(0, displayLimit).map(f => {
       const canDownload = isExportableCodeFile(f);
+      const isSelected = selectedPathsSet.has(f.path);
+      const showCheckbox = (currentFilter === 'export');
+
       return `
-        <div class="file-item">
+        <div class="file-item ${showCheckbox && isSelected ? 'selected' : ''}">
+          ${showCheckbox ? `<input type="checkbox" class="file-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleFileSelection('${escapeAttr(f.path)}')">` : ''}
           <div class="file-main" onclick="openCodeEntry('${escapeAttr(f.path)}')">
             <div class="file-path">${escapeHtml(f.path)}</div>
             <div class="file-size">${formatBytes(f.size)}</div>
@@ -724,7 +808,7 @@
     if (!currentRawCode) return;
     const cleanAppName = (currentApkData && currentApkData.appName ? currentApkData.appName : 'app')
       .replace(/[^a-zA-Z0-9\u0600-\u06FF_-]/g, '_');
-    const baseFile = currentFilePath.split('/').pop().replace('.', '_');
+    const baseFile = currentFilePath.split('/').pop();
     const suggestedName = `${cleanAppName}_${baseFile}.txt`;
 
     if (window.AndroidBridge && window.AndroidBridge.saveCodeAsTxt) {
@@ -733,12 +817,6 @@
   }
 
   window.onCodeFileSaved = function(info) {
-    if (info && info.fileName) {
-      savedFilesLog.unshift(info.fileName);
-      if (currentFilter === 'export') {
-        renderFilesList();
-      }
-    }
   };
 
   function openCodeEntry(entryPath) {
