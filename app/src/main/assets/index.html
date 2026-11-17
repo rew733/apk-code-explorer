@@ -12,6 +12,8 @@
     --border: #334155;
     --primary: #38bdf8;
     --primary-dim: rgba(56, 189, 248, 0.15);
+    --success: #22c55e;
+    --success-dim: rgba(34, 197, 94, 0.16);
     --text: #f1f5f9;
     --text-muted: #94a3b8;
     --code-bg: #0b1120;
@@ -34,7 +36,6 @@
     overflow: hidden;
   }
 
-  /* Header */
   header {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
@@ -65,9 +66,9 @@
     background: var(--primary-dim);
     color: var(--primary);
     font-size: 11px;
-    padding: 2px 8px;
+    padding: 3px 9px;
     border-radius: 99px;
-    font-weight: 600;
+    font-weight: 700;
     flex-shrink: 0;
   }
 
@@ -88,6 +89,11 @@
 
   .btn:active { opacity: 0.85; transform: scale(0.98); }
 
+  .btn-success {
+    background: var(--success);
+    color: #052e16;
+  }
+
   .btn-secondary {
     background: var(--surface-hover);
     color: var(--text);
@@ -99,7 +105,6 @@
     font-size: 12px;
   }
 
-  /* Views */
   .view {
     display: none;
     flex: 1;
@@ -111,7 +116,6 @@
     display: flex;
   }
 
-  /* Search Bar */
   .search-box {
     padding: 10px 14px;
     background: var(--bg);
@@ -136,7 +140,6 @@
     border-color: var(--primary);
   }
 
-  /* App List */
   .list-container {
     flex: 1;
     overflow-y: auto;
@@ -193,7 +196,6 @@
     text-overflow: ellipsis;
   }
 
-  /* Tabs & Filter Pills */
   .meta-banner {
     background: var(--surface);
     padding: 10px 14px;
@@ -221,7 +223,7 @@
     background: var(--surface);
     color: var(--text-muted);
     border: 1px solid var(--border);
-    padding: 5px 12px;
+    padding: 6px 12px;
     border-radius: 99px;
     font-size: 12px;
     white-space: nowrap;
@@ -235,23 +237,34 @@
     font-weight: 700;
   }
 
-  /* File Tree Item */
+  .pill.pill-export {
+    border-color: rgba(34, 197, 94, 0.4);
+    color: #4ade80;
+  }
+
+  .pill.pill-export.active {
+    background: var(--success-dim);
+    border-color: var(--success);
+    color: #4ade80;
+  }
+
   .file-item {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 10px 12px;
-    margin-bottom: 6px;
+    margin-bottom: 7px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    cursor: pointer;
     direction: ltr;
   }
 
-  .file-item:active {
-    background: var(--surface-hover);
+  .file-main {
+    flex: 1;
+    cursor: pointer;
+    overflow: hidden;
   }
 
   .file-path {
@@ -261,13 +274,42 @@
     word-break: break-all;
   }
 
+  .file-size {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+
+  .file-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
   .file-tag {
     font-size: 10px;
     padding: 2px 6px;
     border-radius: 4px;
     font-weight: 700;
     text-transform: uppercase;
-    flex-shrink: 0;
+  }
+
+  .dl-mini-btn {
+    background: var(--success-dim);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.4);
+    padding: 5px 9px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: system-ui, sans-serif;
+  }
+
+  .dl-mini-btn:active {
+    background: var(--success);
+    color: #052e16;
   }
 
   .tag-manifest { background: rgba(244, 114, 182, 0.2); color: #f472b6; }
@@ -276,15 +318,51 @@
   .tag-layout, .tag-xml { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
   .tag-other, .tag-image, .tag-native { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
 
+  .export-notice {
+    background: var(--success-dim);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    color: #bbf7d0;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
+
+  .saved-history-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+
+  .saved-history-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 6px;
+  }
+
+  .saved-item {
+    font-size: 11.5px;
+    color: #4ade80;
+    font-family: monospace;
+    padding: 3px 0;
+    direction: ltr;
+    text-align: left;
+  }
+
   /* Code Viewer */
   .code-toolbar {
     background: var(--surface);
-    padding: 8px 12px;
+    padding: 8px 10px;
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px;
+    gap: 5px;
+    flex-wrap: wrap;
     flex-shrink: 0;
   }
 
@@ -311,7 +389,7 @@
   }
 
   .code-line.highlight-match {
-    background: rgba(250, 204, 21, 0.2);
+    background: rgba(250, 204, 21, 0.22);
   }
 
   .line-num {
@@ -328,14 +406,11 @@
     color: #e2e8f0;
   }
 
-  /* Syntax Colors */
   .syn-tag { color: var(--tag-color); }
-  .syn-attr { color: var(--attr-color); }
   .syn-str { color: var(--str-color); }
   .syn-kw { color: var(--kw-color); font-weight: 600; }
   .syn-com { color: var(--comment-color); font-style: italic; }
 
-  /* Loader Overlay */
   .loader-overlay {
     position: fixed;
     inset: 0;
@@ -394,6 +469,7 @@
     <div id="apkMetaBanner" class="meta-banner"></div>
     <div class="pills" id="filterPills">
       <div class="pill active" data-filter="all" onclick="setFileFilter('all', this)">الكل</div>
+      <div class="pill pill-export" data-filter="export" onclick="setFileFilter('export', this)">تحميل ملفات TXT</div>
       <div class="pill" data-filter="manifest" onclick="setFileFilter('manifest', this)">Manifest</div>
       <div class="pill" data-filter="code" onclick="setFileFilter('code', this)">أكواد الويب / Assets</div>
       <div class="pill" data-filter="layout" onclick="setFileFilter('layout', this)">واجهات XML</div>
@@ -408,14 +484,15 @@
   <!-- VIEW 3: Code Viewer -->
   <div id="viewCode" class="view">
     <div class="code-toolbar">
-      <div style="display:flex; gap:6px;">
+      <div style="display:flex; gap:5px;">
+        <button class="btn btn-success btn-icon" onclick="downloadCurrentCodeAsTxt()">حفظ TXT</button>
+        <button class="btn btn-secondary btn-icon" onclick="copyCurrentCode()">نسخ</button>
+        <button class="btn btn-secondary btn-icon" onclick="shareCurrentCode()">مشاركة</button>
+      </div>
+      <div style="display:flex; gap:5px; align-items:center;">
+        <input type="text" id="codeSearchInput" class="search-input" style="padding:5px 8px; font-size:12px; width:130px;" placeholder="بحث بالكود..." oninput="highlightCodeSearch()">
         <button class="btn btn-secondary btn-icon" onclick="changeFontSize(-1)">A-</button>
         <button class="btn btn-secondary btn-icon" onclick="changeFontSize(1)">A+</button>
-      </div>
-      <input type="text" id="codeSearchInput" class="search-input" style="padding:5px 10px; font-size:12px;" placeholder="بحث داخل الكود..." oninput="highlightCodeSearch()">
-      <div style="display:flex; gap:6px;">
-        <button class="btn btn-secondary btn-icon" onclick="copyCurrentCode()">نسخ</button>
-        <button class="btn btn-icon" onclick="shareCurrentCode()">مشاركة</button>
       </div>
     </div>
     <div id="codeWrapper" class="code-wrapper"></div>
@@ -435,6 +512,7 @@
   let currentRawCode = '';
   let currentFontSize = 12.5;
   let currentView = 'viewApps';
+  let savedFilesLog = [];
 
   window.addEventListener('DOMContentLoaded', () => {
     if (window.AndroidBridge && window.AndroidBridge.requestInstalledApps) {
@@ -553,6 +631,18 @@
     renderFilesList();
   }
 
+  function formatBytes(bytes) {
+    if (!bytes || bytes < 0) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  function isExportableCodeFile(f) {
+    return f.type === 'manifest' || f.type === 'asset' || f.type === 'code' ||
+           f.type === 'layout' || f.type === 'xml' || f.type === 'dex';
+  }
+
   function renderFilesList() {
     if (!currentApkData || !currentApkData.files) return;
     const q = document.getElementById('fileSearchInput').value.toLowerCase().trim();
@@ -562,6 +652,7 @@
       const matchQuery = f.path.toLowerCase().includes(q);
       if (!matchQuery) return false;
       if (currentFilter === 'all') return true;
+      if (currentFilter === 'export') return isExportableCodeFile(f);
       if (currentFilter === 'manifest') return f.type === 'manifest';
       if (currentFilter === 'code') return f.type === 'asset' || f.type === 'code';
       if (currentFilter === 'layout') return f.type === 'layout' || f.type === 'xml';
@@ -569,30 +660,86 @@
       return true;
     });
 
-    // ترتيب الملفات المهمة في البداية
     filtered.sort((a, b) => priorityScore(b) - priorityScore(a));
 
+    let topBannerHtml = '';
+    if (currentFilter === 'export') {
+      topBannerHtml += `
+        <div class="export-notice">
+          اضغط على زر <strong>تحميل TXT</strong> بجانب أي ملف لحفظه فوراً كملف نصي في ذاكرة هاتفك وقراءته أو دراسته في أي محرر خارجي دون تعليق.
+        </div>
+      `;
+      if (savedFilesLog.length > 0) {
+        topBannerHtml += `
+          <div class="saved-history-box">
+            <div class="saved-history-title">الملفات التي تم تحميلها في هذه الجلسة (${savedFilesLog.length}):</div>
+            ${savedFilesLog.map(name => `<div class="saved-item">✓ ${escapeHtml(name)}</div>`).join('')}
+          </div>
+        `;
+      }
+    }
+
     if (!filtered.length) {
-      container.innerHTML = '<div class="empty-state">لا توجد ملفات مطابقة لهذا التصنيف.</div>';
+      container.innerHTML = topBannerHtml + '<div class="empty-state">لا توجد ملفات مطابقة لهذا التصنيف.</div>';
       return;
     }
 
-    container.innerHTML = filtered.slice(0, 350).map(f => `
-      <div class="file-item" onclick="openCodeEntry('${escapeAttr(f.path)}')">
-        <div class="file-path">${escapeHtml(f.path)}</div>
-        <span class="file-tag tag-${f.type}">${f.type}</span>
-      </div>
-    `).join('');
+    const itemsHtml = filtered.slice(0, 350).map(f => {
+      const canDownload = isExportableCodeFile(f);
+      return `
+        <div class="file-item">
+          <div class="file-main" onclick="openCodeEntry('${escapeAttr(f.path)}')">
+            <div class="file-path">${escapeHtml(f.path)}</div>
+            <div class="file-size">${formatBytes(f.size)}</div>
+          </div>
+          <div class="file-actions">
+            ${canDownload ? `<button class="dl-mini-btn" onclick="exportSingleFileAsTxt('${escapeAttr(f.path)}')">تحميل TXT</button>` : ''}
+            <span class="file-tag tag-${f.type}">${f.type}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = topBannerHtml + itemsHtml;
   }
 
   function priorityScore(file) {
     if (file.path === 'AndroidManifest.xml') return 100;
-    if (file.path.endsWith('index.html')) return 90;
-    if (file.type === 'dex') return 80;
-    if (file.type === 'code' || file.type === 'asset') return 70;
+    if (file.path.endsWith('index.html')) return 95;
+    if (file.type === 'dex') return 85;
+    if (file.type === 'code' || file.type === 'asset') return 75;
     if (file.type === 'layout') return 60;
     return 10;
   }
+
+  function exportSingleFileAsTxt(entryPath) {
+    const cleanAppName = (currentApkData && currentApkData.appName ? currentApkData.appName : 'app')
+      .replace(/[^a-zA-Z0-9\u0600-\u06FF_-]/g, '_');
+    if (window.AndroidBridge && window.AndroidBridge.exportEntryDirectlyAsTxt) {
+      window.AndroidBridge.exportEntryDirectlyAsTxt(entryPath, cleanAppName);
+    }
+  }
+
+  function downloadCurrentCodeAsTxt() {
+    if (!currentRawCode) return;
+    const cleanAppName = (currentApkData && currentApkData.appName ? currentApkData.appName : 'app')
+      .replace(/[^a-zA-Z0-9\u0600-\u06FF_-]/g, '_');
+    const baseFile = currentFilePath.split('/').pop().replace('.', '_');
+    const suggestedName = `${cleanAppName}_${baseFile}.txt`;
+
+    if (window.AndroidBridge && window.AndroidBridge.saveCodeAsTxt) {
+      window.AndroidBridge.saveCodeAsTxt(suggestedName, currentRawCode);
+    }
+  }
+
+  window.onCodeFileSaved = function(info) {
+    if (info && info.fileName) {
+      savedFilesLog.unshift(info.fileName);
+      if (currentFilter === 'export') {
+        renderFilesList();
+      }
+    }
+  };
 
   function openCodeEntry(entryPath) {
     showLoader(true, 'جاري قراءة الكود...');
@@ -622,30 +769,46 @@
     for (let i = 0; i < maxLines; i++) {
       const rawLine = lines[i];
       const isMatch = qLower && rawLine.toLowerCase().includes(qLower);
-      const formatted = syntaxHighlight(rawLine);
+      const formatted = syntaxHighlightClean(rawLine);
       html += `<div class="code-line ${isMatch ? 'highlight-match' : ''}"><span class="line-num">${i + 1}</span><span class="line-code">${formatted}</span></div>`;
     }
 
     if (lines.length > maxLines) {
-      html += `<div class="code-line"><span class="line-num">...</span><span class="line-code syn-com">// تم عرض أول ${maxLines} سطر من أصل ${lines.length} سطر للحفاظ على سرعة الأداء.</span></div>`;
+      html += `<div class="code-line"><span class="line-num">...</span><span class="line-code syn-com">// تم عرض أول ${maxLines} سطر من أصل ${lines.length} سطر. اضغط على زر "حفظ TXT" بالأعلى لتحميل الملف كاملاً.</span></div>`;
     }
 
     wrapper.innerHTML = html;
     wrapper.scrollTop = 0;
   }
 
-  function syntaxHighlight(line) {
-    let esc = escapeHtml(line);
-    if (esc.trim().startsWith('//') || esc.trim().startsWith('/*') || esc.trim().startsWith('*')) {
-      return `<span class="syn-com">${esc}</span>`;
+  function syntaxHighlightClean(line) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')) {
+      return `<span class="syn-com">${escapeHtml(line)}</span>`;
     }
-    // Strings
-    esc = esc.replace(/(&quot;.*?&quot;|&#39;.*?&#39;)/g, '<span class="syn-str">$1</span>');
-    // XML/HTML Tags
-    esc = esc.replace(/(&lt;\/?[a-zA-Z0-9_.:-]+)/g, '<span class="syn-tag">$1</span>');
-    // Keywords
-    esc = esc.replace(/\b(public|private|protected|class|fun|function|const|let|var|return|if|else|for|while|import|package|void|new|true|false|null)\b/g, '<span class="syn-kw">$1</span>');
-    return esc;
+    const tokenRegex = /(".*?"|'.*?'|<\/?[a-zA-Z0-9_.:-]+|\b(?:public|private|protected|class|fun|function|const|let|var|return|if|else|for|while|import|package|void|new|true|false|null)\b)/g;
+    let lastIndex = 0;
+    let out = '';
+    let match;
+
+    while ((match = tokenRegex.exec(line)) !== null) {
+      if (match.index > lastIndex) {
+        out += escapeHtml(line.slice(lastIndex, match.index));
+      }
+      const tok = match[0];
+      if (tok.startsWith('"') || tok.startsWith("'")) {
+        out += `<span class="syn-str">${escapeHtml(tok)}</span>`;
+      } else if (tok.startsWith('<')) {
+        out += `<span class="syn-tag">${escapeHtml(tok)}</span>`;
+      } else {
+        out += `<span class="syn-kw">${escapeHtml(tok)}</span>`;
+      }
+      lastIndex = tokenRegex.lastIndex;
+    }
+    if (lastIndex < line.length) {
+      out += escapeHtml(line.slice(lastIndex));
+    }
+    return out;
   }
 
   function highlightCodeSearch() {
