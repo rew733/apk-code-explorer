@@ -16,12 +16,14 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 
@@ -33,6 +35,9 @@ class MainActivity : AppCompatActivity() {
 
     private var pendingSaveContent: String = ""
     private var pendingSaveFileName: String = "extracted_code.txt"
+
+    private var pendingBatchPaths: List<String> = emptyList()
+    private var pendingBatchFolderName: String = "ExtractedApp"
 
     private val pickApkLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -47,6 +52,14 @@ class MainActivity : AppCompatActivity() {
     ) { uri: Uri? ->
         if (uri != null) {
             writeTextToUri(uri, pendingSaveContent, pendingSaveFileName)
+        }
+    }
+
+    private val pickExportFolderLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { treeUri: Uri? ->
+        if (treeUri != null && pendingBatchPaths.isNotEmpty()) {
+            executeBatchExport(treeUri, pendingBatchFolderName, pendingBatchPaths)
         }
     }
 
@@ -117,6 +130,78 @@ class MainActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(this@MainActivity, "تعذر حفظ الملف في المسار المحدد", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun executeBatchExport(treeUri: Uri, rootFolderName: String, paths: List<String>) {
+        val total = paths.size
+        sendToJs("onLoadingState", JSONObject().put("loading", true).put("message", "جاري تحضير مجلد التصدير (0 / $total)...").toString())
+
+        mainScope.launch {
+            val savedCount = withContext(Dispatchers.IO) {
+                var count = 0
+                try {
+                    val baseDoc = DocumentFile.fromTreeUri(this@MainActivity, treeUri) ?: return@withContext 0
+                    val appRootDoc = baseDoc.findFile(rootFolderName) ?: baseDoc.createDirectory(rootFolderName) ?: baseDoc
+
+                    val dirCache = HashMap<String, DocumentFile>()
+                    dirCache[""] = appRootDoc
+
+                    for ((index, entryPath) in paths.withIndex()) {
+                        val content = parserEngine.readEntryContent(entryPath)
+                        val segments = entryPath.split("/")
+                        val rawFileName = segments.last()
+                        val dirSegments = segments.dropLast(1)
+
+                        var currentDir = appRootDoc
+                        var builtPath = ""
+                        for (seg in dirSegments) {
+                            builtPath = if (builtPath.isEmpty()) seg else "$builtPath/$seg"
+                            val cached = dirCache[builtPath]
+                            if (cached != null) {
+                                currentDir = cached
+                            } else {
+                                val subDir = currentDir.findFile(seg) ?: currentDir.createDirectory(seg)
+                                if (subDir != null) {
+                                    dirCache[builtPath] = subDir
+                                    currentDir = subDir
+                                }
+                            }
+                        }
+
+                        val finalFileName = "$rawFileName.txt"
+                        currentDir.findFile(finalFileName)?.delete()
+                        val targetFile = currentDir.createFile("text/plain", finalFileName)
+                        if (targetFile != null) {
+                            contentResolver.openOutputStream(targetFile.uri)?.use { out ->
+                                out.write(content.toByteArray(StandardCharsets.UTF_8))
+                            }
+                            count++
+                        }
+
+                        if ((index + 1) % 5 == 0 || index + 1 == total) {
+                            val progressMsg = "جاري حفظ الملفات في مساراتها (${index + 1} / $total)..."
+                            sendToJs("onLoadingState", JSONObject().put("loading", true).put("message", progressMsg).toString())
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+                count
+            }
+
+            sendToJs("onLoadingState", JSONObject().put("loading", false).put("message", "").toString())
+            Toast.makeText(
+                this@MainActivity,
+                "اكتمل التصدير! تم حفظ $savedCount ملف داخل مجلد $rootFolderName",
+                Toast.LENGTH_LONG
+            ).show()
+
+            val donePayload = JSONObject()
+                .put("savedCount", savedCount)
+                .put("totalCount", total)
+                .put("folderName", rootFolderName)
+                .toString()
+            sendToJs("onBatchExportFinished", donePayload)
         }
     }
 
@@ -194,7 +279,7 @@ class MainActivity : AppCompatActivity() {
                 val content = withContext(Dispatchers.IO) {
                     parserEngine.readEntryContent(entryPath)
                 }
-                val cleanBase = entryPath.substringAfterLast('/').replace('.', '_')
+                val cleanBase = entryPath.substringAfterLast('/')
                 val finalName = "${appNamePrefix}_${cleanBase}.txt"
                 pendingSaveFileName = finalName
                 pendingSaveContent = content
@@ -203,6 +288,29 @@ class MainActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     Toast.makeText(this@MainActivity, "خطأ في فتح نافذة الحفظ: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
+            }
+        }
+
+        @JavascriptInterface
+        fun startBatchExport(appFolderName: String, pathsJsonArray: String) {
+            try {
+                val arr = JSONArray(pathsJsonArray)
+                val list = mutableListOf<String>()
+                for (i in 0 until arr.length()) {
+                    list.add(arr.getString(i))
+                }
+                if (list.isEmpty()) return
+                pendingBatchFolderName = appFolderName
+                pendingBatchPaths = list
+                runOnUiThread {
+                    try {
+                        pickExportFolderLauncher.launch(null)
+                    } catch (e: Exception) {
+                        Toast.makeText(this@MainActivity, "تعذر فتح منتقي المجلدات: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@MainActivity, "خطأ في قائمة الملفات: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
 
