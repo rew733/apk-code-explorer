@@ -23,6 +23,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.nio.charset.StandardCharsets
 
 class MainActivity : AppCompatActivity() {
 
@@ -30,11 +31,22 @@ class MainActivity : AppCompatActivity() {
     private lateinit var parserEngine: ApkParserEngine
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    private var pendingSaveContent: String = ""
+    private var pendingSaveFileName: String = "extracted_code.txt"
+
     private val pickApkLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
             processSelectedUri(uri)
+        }
+    }
+
+    private val createCodeFileLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            writeTextToUri(uri, pendingSaveContent, pendingSaveFileName)
         }
     }
 
@@ -80,6 +92,31 @@ class MainActivity : AppCompatActivity() {
                 parserEngine.loadApkFromUri(uri)
             }
             sendToJs("onApkAnalyzed", resultJson)
+        }
+    }
+
+    private fun writeTextToUri(uri: Uri, content: String, fileName: String) {
+        mainScope.launch {
+            val success = withContext(Dispatchers.IO) {
+                try {
+                    contentResolver.openOutputStream(uri)?.use { output ->
+                        output.write(content.toByteArray(StandardCharsets.UTF_8))
+                    }
+                    true
+                } catch (_: Exception) {
+                    false
+                }
+            }
+            if (success) {
+                Toast.makeText(this@MainActivity, "تم حفظ الملف: $fileName", Toast.LENGTH_LONG).show()
+                val payload = JSONObject()
+                    .put("fileName", fileName)
+                    .put("uri", uri.toString())
+                    .toString()
+                sendToJs("onCodeFileSaved", payload)
+            } else {
+                Toast.makeText(this@MainActivity, "تعذر حفظ الملف في المسار المحدد", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -135,6 +172,37 @@ class MainActivity : AppCompatActivity() {
                     .put("content", content)
                     .toString()
                 sendToJs("onEntryContentLoaded", payload)
+            }
+        }
+
+        @JavascriptInterface
+        fun saveCodeAsTxt(suggestedFileName: String, codeContent: String) {
+            pendingSaveFileName = suggestedFileName
+            pendingSaveContent = codeContent
+            runOnUiThread {
+                try {
+                    createCodeFileLauncher.launch(suggestedFileName)
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "خطأ في فتح نافذة الحفظ: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun exportEntryDirectlyAsTxt(entryPath: String, appNamePrefix: String) {
+            mainScope.launch {
+                val content = withContext(Dispatchers.IO) {
+                    parserEngine.readEntryContent(entryPath)
+                }
+                val cleanBase = entryPath.substringAfterLast('/').replace('.', '_')
+                val finalName = "${appNamePrefix}_${cleanBase}.txt"
+                pendingSaveFileName = finalName
+                pendingSaveContent = content
+                try {
+                    createCodeFileLauncher.launch(finalName)
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "خطأ في فتح نافذة الحفظ: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
         }
 
