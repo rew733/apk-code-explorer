@@ -16,6 +16,8 @@
     --success-dim: rgba(34, 197, 94, 0.16);
     --accent-img: #f59e0b;
     --accent-img-dim: rgba(245, 158, 11, 0.16);
+    --accent-flat: #a855f7;
+    --accent-flat-dim: rgba(168, 85, 247, 0.16);
     --text: #f1f5f9;
     --text-muted: #94a3b8;
     --code-bg: #0b1120;
@@ -99,6 +101,11 @@
   .btn-img {
     background: var(--accent-img);
     color: #1c1917;
+  }
+
+  .btn-flat {
+    background: var(--accent-flat);
+    color: #ffffff;
   }
 
   .btn-secondary {
@@ -255,6 +262,17 @@
     color: #4ade80;
   }
 
+  .pill.pill-flat {
+    border-color: rgba(168, 85, 247, 0.45);
+    color: #d8b4fe;
+  }
+
+  .pill.pill-flat.active {
+    background: var(--accent-flat-dim);
+    border-color: var(--accent-flat);
+    color: #e9d5ff;
+  }
+
   .pill.pill-images {
     border-color: rgba(245, 158, 11, 0.45);
     color: #fbbf24;
@@ -304,6 +322,11 @@
   .file-item.selected {
     border-color: var(--success);
     background: rgba(34, 197, 94, 0.08);
+  }
+
+  .file-item.selected-flat {
+    border-color: var(--accent-flat);
+    background: rgba(168, 85, 247, 0.10);
   }
 
   .file-item.selected-img {
@@ -403,6 +426,12 @@
     font-size: 12px;
     margin-bottom: 10px;
     line-height: 1.5;
+  }
+
+  .export-notice.flat-notice {
+    background: var(--accent-flat-dim);
+    border-color: rgba(168, 85, 247, 0.45);
+    color: #f3e8ff;
   }
 
   .export-notice.img-notice {
@@ -569,6 +598,7 @@
     <div class="pills" id="filterPills">
       <div class="pill active" data-filter="all" onclick="setFileFilter('all', this)">الكل</div>
       <div class="pill pill-export" data-filter="export" onclick="setFileFilter('export', this)">تحميل ملفات TXT</div>
+      <div class="pill pill-flat" data-filter="flat_codes" onclick="setFileFilter('flat_codes', this)">أكواد في مجلد واحد</div>
       <div class="pill pill-images" data-filter="images" onclick="setFileFilter('images', this)">الصور (Images)</div>
       <div class="pill" data-filter="manifest" onclick="setFileFilter('manifest', this)">Manifest</div>
       <div class="pill" data-filter="code" onclick="setFileFilter('code', this)">أكواد الويب / Assets</div>
@@ -770,7 +800,7 @@
   }
 
   function isBatchMode() {
-    return currentFilter === 'export' || currentFilter === 'images';
+    return currentFilter === 'export' || currentFilter === 'flat_codes' || currentFilter === 'images';
   }
 
   function updateBatchBarUI() {
@@ -787,6 +817,9 @@
       if (currentFilter === 'images') {
         batchBtn.className = 'btn btn-img btn-icon';
         batchBtn.textContent = 'حفظ الصور المحددة في مساراتها';
+      } else if (currentFilter === 'flat_codes') {
+        batchBtn.className = 'btn btn-flat btn-icon';
+        batchBtn.textContent = 'حفظ الأكواد في مجلد واحد';
       } else {
         batchBtn.className = 'btn btn-success btn-icon';
         batchBtn.textContent = 'تحميل المحدد في مساراته';
@@ -827,8 +860,14 @@
     const cleanFolderName = (currentApkData && currentApkData.appName ? currentApkData.appName : 'ExtractedApp')
       .replace(/[^a-zA-Z0-9\u0600-\u06FF_-]/g, '_');
 
-    if (window.AndroidBridge && window.AndroidBridge.startBatchExport) {
-      window.AndroidBridge.startBatchExport(cleanFolderName, JSON.stringify(pathsToExport));
+    if (currentFilter === 'flat_codes') {
+      if (window.AndroidBridge && window.AndroidBridge.startFlatCodeExport) {
+        window.AndroidBridge.startFlatCodeExport(cleanFolderName, JSON.stringify(pathsToExport));
+      }
+    } else {
+      if (window.AndroidBridge && window.AndroidBridge.startBatchExport) {
+        window.AndroidBridge.startBatchExport(cleanFolderName, JSON.stringify(pathsToExport));
+      }
     }
   }
 
@@ -846,6 +885,7 @@
       if (!matchQuery) return false;
       if (currentFilter === 'all') return true;
       if (currentFilter === 'export') return isExportableCodeFile(f);
+      if (currentFilter === 'flat_codes') return isExportableCodeFile(f);
       if (currentFilter === 'images') return f.type === 'image';
       if (currentFilter === 'manifest') return f.type === 'manifest';
       if (currentFilter === 'code') return f.type === 'asset' || f.type === 'code';
@@ -870,6 +910,12 @@
           اضغط على <strong>تحديد الكل</strong> ثم <strong>تحميل المحدد في مساراته</strong>، واختر مجلداً على هاتفك؛ سيقوم التطبيق بإنشاء مجلد باسم التطبيق وبداخله جميع المجلدات الفرعية والأكواد بأسمائها الحقيقية.
         </div>
       `;
+    } else if (currentFilter === 'flat_codes') {
+      topBannerHtml += `
+        <div class="export-notice flat-notice">
+          اضغط على <strong>تحديد الكل</strong> ثم <strong>حفظ الأكواد في مجلد واحد</strong>؛ سيتم جمع كل ملفات الأكواد (بدون الصور وبدون مجلدات فرعية) وحفظها معاً داخل مجلد واحد لتسهيل رفعها ومشاركتها دفعة واحدة.
+        </div>
+      `;
     } else if (currentFilter === 'images') {
       topBannerHtml += `
         <div class="export-notice img-notice">
@@ -892,7 +938,9 @@
 
       let selectedClass = '';
       if (showCheckbox && isSelected) {
-        selectedClass = isImg ? 'selected-img' : 'selected';
+        if (isImg) selectedClass = 'selected-img';
+        else if (currentFilter === 'flat_codes') selectedClass = 'selected-flat';
+        else selectedClass = 'selected';
       }
 
       let actionBtnHtml = '';
