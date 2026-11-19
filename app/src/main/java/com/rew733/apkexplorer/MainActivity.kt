@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity() {
 
     private var pendingBatchPaths: List<String> = emptyList()
     private var pendingBatchFolderName: String = "ExtractedApp"
+    private var isFlatCodeExportMode: Boolean = false
 
     private val pickApkLauncher = registerForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -59,7 +60,11 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.OpenDocumentTree()
     ) { treeUri: Uri? ->
         if (treeUri != null && pendingBatchPaths.isNotEmpty()) {
-            executeBatchExport(treeUri, pendingBatchFolderName, pendingBatchPaths)
+            if (isFlatCodeExportMode) {
+                executeFlatCodeExport(treeUri, pendingBatchFolderName, pendingBatchPaths)
+            } else {
+                executeBatchExport(treeUri, pendingBatchFolderName, pendingBatchPaths)
+            }
         }
     }
 
@@ -130,6 +135,78 @@ class MainActivity : AppCompatActivity() {
             } else {
                 Toast.makeText(this@MainActivity, "تعذر حفظ الملف في المسار المحدد", Toast.LENGTH_SHORT).show()
             }
+        }
+    }
+
+    private fun executeFlatCodeExport(treeUri: Uri, rootFolderName: String, paths: List<String>) {
+        val codeOnlyPaths = paths.filter { !parserEngine.isImageEntry(it) }
+        val total = codeOnlyPaths.size
+        if (total == 0) {
+            Toast.makeText(this, "لا توجد ملفات أكواد للتصدير", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        sendToJs("onLoadingState", JSONObject().put("loading", true).put("message", "جاري حفظ الأكواد في مسار واحد (0 / $total)...").toString())
+
+        mainScope.launch {
+            val savedCount = withContext(Dispatchers.IO) {
+                var count = 0
+                try {
+                    val baseDoc = DocumentFile.fromTreeUri(this@MainActivity, treeUri) ?: return@withContext 0
+                    val flatFolderName = "${rootFolderName}_Codes"
+                    val targetFolderDoc = baseDoc.findFile(flatFolderName) ?: baseDoc.createDirectory(flatFolderName) ?: baseDoc
+
+                    val usedNames = HashSet<String>()
+
+                    for ((index, entryPath) in codeOnlyPaths.withIndex()) {
+                        val content = parserEngine.readEntryContent(entryPath)
+                        val rawBaseName = entryPath.substringAfterLast('/')
+                        var candidateName = "$rawBaseName.txt"
+
+                        if (usedNames.contains(candidateName.lowercase())) {
+                            val parentTag = entryPath.substringBeforeLast('/', "")
+                                .replace("/", "_")
+                                .takeLast(24)
+                            candidateName = if (parentTag.isNotEmpty()) {
+                                "${parentTag}_${rawBaseName}.txt"
+                            } else {
+                                "${index + 1}_${rawBaseName}.txt"
+                            }
+                        }
+                        usedNames.add(candidateName.lowercase())
+
+                        targetFolderDoc.findFile(candidateName)?.delete()
+                        val targetFile = targetFolderDoc.createFile("text/plain", candidateName)
+                        if (targetFile != null) {
+                            contentResolver.openOutputStream(targetFile.uri)?.use { out ->
+                                out.write(content.toByteArray(StandardCharsets.UTF_8))
+                            }
+                            count++
+                        }
+
+                        if ((index + 1) % 5 == 0 || index + 1 == total) {
+                            val progressMsg = "جاري حفظ ملفات الأكواد في مسار واحد (${index + 1} / $total)..."
+                            sendToJs("onLoadingState", JSONObject().put("loading", true).put("message", progressMsg).toString())
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+                count
+            }
+
+            sendToJs("onLoadingState", JSONObject().put("loading", false).put("message", "").toString())
+            Toast.makeText(
+                this@MainActivity,
+                "تم حفظ $savedCount ملف كود في مجلد واحد (${rootFolderName}_Codes) بدون صور",
+                Toast.LENGTH_LONG
+            ).show()
+
+            val donePayload = JSONObject()
+                .put("savedCount", savedCount)
+                .put("totalCount", total)
+                .put("folderName", "${rootFolderName}_Codes")
+                .toString()
+            sendToJs("onBatchExportFinished", donePayload)
         }
     }
 
@@ -351,6 +428,31 @@ class MainActivity : AppCompatActivity() {
                     list.add(arr.getString(i))
                 }
                 if (list.isEmpty()) return
+                isFlatCodeExportMode = false
+                pendingBatchFolderName = appFolderName
+                pendingBatchPaths = list
+                runOnUiThread {
+                    try {
+                        pickExportFolderLauncher.launch(null)
+                    } catch (e: Exception) {
+                        Toast.makeText(this@MainActivity, "تعذر فتح منتقي المجلدات: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this@MainActivity, "خطأ في قائمة الملفات: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        @JavascriptInterface
+        fun startFlatCodeExport(appFolderName: String, pathsJsonArray: String) {
+            try {
+                val arr = JSONArray(pathsJsonArray)
+                val list = mutableListOf<String>()
+                for (i in 0 until arr.length()) {
+                    list.add(arr.getString(i))
+                }
+                if (list.isEmpty()) return
+                isFlatCodeExportMode = true
                 pendingBatchFolderName = appFolderName
                 pendingBatchPaths = list
                 runOnUiThread {
